@@ -2,7 +2,18 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { Group, Canvas, useImage, Image, Text, useFont } from "@shopify/react-native-skia";
 import { useWindowDimensions } from 'react-native';
-import { useSharedValue, withTiming, Easing, withSequence, withRepeat, useFrameCallback, useDerivedValue, interpolate, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
+import { 
+  useSharedValue, 
+  withTiming, 
+  Easing, 
+  withSequence, 
+  withRepeat, 
+  useFrameCallback, 
+  useDerivedValue, 
+  interpolate, 
+  useAnimatedReaction, 
+  runOnJS,
+  cancelAnimation } from 'react-native-reanimated';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 
@@ -18,11 +29,94 @@ export default function App() {
   const pipeTop = useImage(require('./assets/sprites/pipe-top.png'));
   const floor = useImage(require('./assets/sprites/floor.png'));
   const font = useFont(require("./assets/fonts/Game-Regular.ttf"), 40);
-  
+  const gameOver = useSharedValue(false);
+
   const x = useSharedValue(width - 10); //Shared value for animation
   const penguinYpos = useSharedValue(height/3);
   const penguinXpos = width / 4;
   const penguinVelocity = useSharedValue(100);
+
+  //Loop pipes
+  useEffect (() => {
+    pipeMovement();
+   }, []);
+
+  const pipeMovement = () => {
+    x.value = //x value of pipes
+    withRepeat ( 
+      withSequence (
+        withTiming(-200, {duration:3000, easing: Easing.linear}), //from right to left (-200) - 3s time
+        withTiming(width, {duration: 0}) //Goes back right (max width of screen) 0 = instant
+      ), -1 //withRepeat -1 = infinite
+    )
+  }
+     
+     //Scoring
+     useAnimatedReaction(
+      () => x.value, //x value of pipes
+      (currentValue, previousValue) => {
+        const penguinPassed = penguinXpos
+        if (currentValue !== previousValue &&  //current pipe not equal to previous
+           previousValue &&                    //previous value should exist
+           currentValue <= penguinPassed &&    //if current pipe = penguin pos or left side
+           previousValue > penguinPassed)      //if previous pipe passed penguin
+        {           
+            runOnJS(setScore)(score + 1);
+        }
+      }
+    );
+  
+    //Collision
+    useAnimatedReaction(
+      () => penguinYpos.value,
+      (currentValue, previousValue) => {
+        if (currentValue > height - 140)
+        {
+          gameOver.value = true;
+          cancelAnimation(x);
+        }
+      }
+      );
+    
+      //GameOver
+      useAnimatedReaction(
+        () => gameOver.value,
+        (currentValue, previousValue) => {
+          if (currentValue && !previousValue)
+          {
+            cancelAnimation(x);
+          }
+        }
+      );
+
+    //Penguin falling physics
+    useFrameCallback(({timeSincePreviousFrame: dt})=>{ //called on every frame
+      if (!dt || gameOver.value){
+        return;
+      }
+      penguinYpos.value = penguinYpos.value + (penguinVelocity.value * dt)/1000; //Penguin Y pos - based on velocity to jump or fall
+      penguinVelocity.value = penguinVelocity.value + (gravity * dt)/1000;       //Minus Velocity to fall
+ 
+    });
+
+   const restartGame = () => {  //reset all values
+    'worklet';
+    penguinYpos.value = height/3;
+    penguinVelocity.value = 0;
+    gameOver.value = false;
+    x.value = width;
+    runOnJS(pipeMovement)();
+    runOnJS(setScore)(0);  //runOnJS to update state on animation or within gesture
+  }
+
+  //Penguin jump physics
+  const gesture = Gesture.Tap().onStart(() => { //onTap
+    if (gameOver.value) {   //if gameover - restart
+      restartGame();
+    } else {
+    penguinVelocity.value = jump      //Add velocity (opposite sign to gravity - to go up)
+    }
+  })
 
   const penguinTransform = useDerivedValue(() => { //Using calculated value
     return [
@@ -36,58 +130,6 @@ export default function App() {
   const penguinOrigin = useDerivedValue(() => {
     return {x:penguinXpos + 47.5, y: penguinYpos.value + 47.5}
   })
-
-  //Penguin falling physics
-   useFrameCallback(({timeSincePreviousFrame: dt})=>{ //called on every frame
-     if (!dt){
-       return;
-     }
-     penguinYpos.value = penguinYpos.value + (penguinVelocity.value * dt)/1000; //Penguin Y pos - based on velocity to jump or fall
-     penguinVelocity.value = penguinVelocity.value + (gravity * dt)/1000;       //Minus Velocity to fall
-
-   });
-
-  //Penguin jump physics
-  const gesture = Gesture.Tap().onStart(() => { //onTap
-    penguinVelocity.value = jump      //Add velocity (opposite sign to gravity - to go up)
-  })
-  
-  //Loop pipes
-   useEffect (() => {
-     x.value = //x value of pipes
-     withRepeat ( 
-       withSequence (
-         withTiming(-200, {duration:3000, easing: Easing.linear}), //from right to left (-200) - 3s time
-         withTiming(width, {duration: 0}) //Goes back right (max width of screen) 0 = instant
-       ), -1 //wiithRepeat -1 = infinite
-     )
-   }, []);
-
-   //Scoring
-   useAnimatedReaction(
-    () => x.value, //x value of pipes
-    (currentValue, previousValue) => {
-      const penguinPassed = penguinXpos
-      if (currentValue !== previousValue &&  //current pipe not equal to previous
-         previousValue &&                    //previous value should exist
-         currentValue <= penguinPassed &&    //if current pipe = penguin pos or left side
-         previousValue > penguinPassed)      //if previous pipe passed penguin
-      {           
-          runOnJS(setScore)(score + 1);
-      }
-    }
-  );
-
-  //Collision
-  useAnimatedReaction(
-  () => penguinYpos.value,
-  (currentValue, previousValue) => {
-  if (currentValue > height)
-  {
-
-  }
-    }
-  );
 
   const pipeOffset = 0;
 
