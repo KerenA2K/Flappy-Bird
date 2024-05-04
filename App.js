@@ -16,9 +16,12 @@ import {
   cancelAnimation } from 'react-native-reanimated';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { Audio } from 'expo-av';
 
 const gravity = 1000;
 const jump = -450
+const jumpSound = new Audio.Sound();
+const collisionSound = new Audio.Sound();
 
 export default function App() {
   const [score, setScore] = useState(0);
@@ -36,6 +39,40 @@ export default function App() {
   const penguinXpos = width / 4;
   const penguinVelocity = useSharedValue(100);
 
+  useEffect(() => {
+    // Load both sound files when mounts
+    async function loadSounds() {
+      try {
+        await jumpSound.loadAsync(require('./assets/jump.wav'));
+        await collisionSound.loadAsync(require('./assets/collision.wav'));
+      } catch (error) {
+        console.error('Error loading sounds', error);
+      }
+    }
+    loadSounds();
+    return () => {
+      jumpSound.unloadAsync();
+      collisionSound.unloadAsync();
+    };
+  }, []); 
+
+  const playJumpSound = () => {
+    try {
+      // Play the sound
+      jumpSound.replayAsync();
+    } catch (error) {
+      console.error('Error playing sound', error);
+    }
+  };
+
+  const playCollisionSound = () => {
+    try {
+      collisionSound.replayAsync();
+    } catch (error) {
+      console.error('Error playing collision sound', error);
+    }
+  };
+
   //Loop pipes
   useEffect (() => {
     pipeMovement();
@@ -51,53 +88,55 @@ export default function App() {
     )
   }
      
-     //Scoring
-     useAnimatedReaction(
-      () => x.value, //x value of pipes
-      (currentValue, previousValue) => {
-        const penguinPassed = penguinXpos
-        if (currentValue !== previousValue &&  //current pipe not equal to previous
-           previousValue &&                    //previous value should exist
-           currentValue <= penguinPassed &&    //if current pipe = penguin pos or left side
-           previousValue > penguinPassed)      //if previous pipe passed penguin
-        {           
-            runOnJS(setScore)(score + 1);
-        }
+   //Scoring
+  useAnimatedReaction(
+    () => x.value, //x value of pipes
+    (currentValue, previousValue) => {
+      const penguinPassed = penguinXpos
+      if (currentValue !== previousValue &&  //current pipe not equal to previous
+         previousValue &&                    //previous value should exist
+         currentValue <= penguinPassed &&    //if current pipe = penguin pos or left side
+         previousValue > penguinPassed)      //if previous pipe passed penguin
+      {           
+          runOnJS(setScore)(score + 1);
       }
+    }
+  );
+
+  //Collision
+  useAnimatedReaction(
+    () => penguinYpos.value,
+    (currentValue, previousValue) => {
+      if (currentValue > height - 140 || currentValue < -50)
+      {
+        //runOnJS(playCollisionSound)();
+        gameOver.value = true;
+      }
+      // if(penguinXpos >= x.value){
+      //   gameOver.value = true;
+      // }
+    }
     );
   
-    //Collision
-    useAnimatedReaction(
-      () => penguinYpos.value,
-      (currentValue, previousValue) => {
-        if (currentValue > height - 140)
-        {
-          gameOver.value = true;
-          cancelAnimation(x);
-        }
+  //GameOver
+  useAnimatedReaction(
+    () => gameOver.value,
+    (currentValue, previousValue) => {
+      if (currentValue && !previousValue)
+      {
+        cancelAnimation(x);
       }
-      );
-    
-      //GameOver
-      useAnimatedReaction(
-        () => gameOver.value,
-        (currentValue, previousValue) => {
-          if (currentValue && !previousValue)
-          {
-            cancelAnimation(x);
-          }
-        }
-      );
+    }
+  );
 
-    //Penguin falling physics
-    useFrameCallback(({timeSincePreviousFrame: dt})=>{ //called on every frame
-      if (!dt || gameOver.value){
-        return;
-      }
-      penguinYpos.value = penguinYpos.value + (penguinVelocity.value * dt)/1000; //Penguin Y pos - based on velocity to jump or fall
-      penguinVelocity.value = penguinVelocity.value + (gravity * dt)/1000;       //Minus Velocity to fall
- 
-    });
+  //Penguin falling physics
+  useFrameCallback(({timeSincePreviousFrame: dt})=>{ //called on every frame
+    if (!dt || gameOver.value){
+      return;
+    }
+    penguinYpos.value = penguinYpos.value + (penguinVelocity.value * dt)/1000; //Penguin Y pos - based on velocity to jump or fall
+    penguinVelocity.value = penguinVelocity.value + (gravity * dt)/1000;       //Minus Velocity to fall
+  });
 
    const restartGame = () => {  //reset all values
     'worklet';
@@ -115,14 +154,15 @@ export default function App() {
       restartGame();
     } else {
     penguinVelocity.value = jump      //Add velocity (opposite sign to gravity - to go up)
-    }
+    //runOnJS(playJumpSound)();
+  }
   })
 
   const penguinTransform = useDerivedValue(() => { //Using calculated value
     return [
       { rotate: interpolate(penguinVelocity.value,  //map value in range
        [jump, -jump], //when bird: jump -> fall
-       [-5, 0.5])   //will rotate: -5 -> 0.5
+       [-6, 0.5])   //will rotate: -5 -> 0.5
       }
     ];
   })
