@@ -1,11 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
-import { Canvas, useImage, Image } from "@shopify/react-native-skia";
+import { Group, Canvas, useImage, Image } from "@shopify/react-native-skia";
 import { useWindowDimensions } from 'react-native';
-import {useSharedValue, withTiming, Easing, withSequence, withRepeat, useFrameCallback} from 'react-native-reanimated';
+import { useSharedValue, withTiming, Easing, withSequence, withRepeat, useFrameCallback, useDerivedValue, interpolate } from 'react-native-reanimated';
 import { useEffect } from 'react';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 
-const gravity = 300;
+const gravity = 1000;
+const jump = -450
 
 export default function App() {
   const {width, height} = useWindowDimensions();
@@ -16,9 +18,15 @@ export default function App() {
   const floor = useImage(require('./assets/sprites/floor.png'));
 
   const x = useSharedValue(width - 10);
-  const penguinYpos = useSharedValue(height/2);
+  const penguinYpos = useSharedValue(height/3);
   const penguinVelocity = useSharedValue(100);
-  
+  const penguinTransform = useDerivedValue(() => {
+    return [{rotate: interpolate(penguinVelocity.value, [jump, -jump], [-0.5, 0.5])}];
+  })
+  const penguinOrigin = useDerivedValue(() => {
+    return {x:width/6 + 47.5, y: penguinYpos.value + 47.5}
+  })
+
    useFrameCallback(({timeSincePreviousFrame: dt})=>{
      if (!dt){
        return;
@@ -38,55 +46,65 @@ export default function App() {
      )
    }, [])
 
+  const gesture = Gesture.Tap().onStart(() => {
+    penguinVelocity.value = jump
+  })
 
   const pipeOffset = 0;
+
   return (
     <View style={styles.container}>
-      <Canvas style={{ width, height }} onTouch={() => (penguinVelocity.value = -200)}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureDetector gesture={gesture}>
+          <Canvas style={{ width, height }}>
 
-        <Image 
-          image={bg} 
-          width={width} 
-          height={height- 70} 
-          fit={'cover'}
-        />
+            <Image 
+              image={bg} 
+              width={width} 
+              height={height- 70} 
+              fit={'cover'}
+            />
 
-        <Image
-          image={pipe}
-          y={height - 370 + pipeOffset}
-          x={x}
-          width={75}
-          height={640}
-        />
+            <Image
+              image={pipe}
+              y={height - 370 + pipeOffset}
+              x={x}
+              width={75}
+              height={640}
+            />
 
-        <Image
-          image={pipeTop}
-          y={pipeOffset - 200}
-          x={x}
-          width={75}
-          height={640}
-        />
+            <Image
+              image={pipeTop}
+              y={pipeOffset - 200}
+              x={x}
+              width={75}
+              height={640}
+            />
 
-        <Image
-          image={floor}
-          width={width}
-          height={150}
-          y={height - 80}
-          x={0}
-          fit={'cover'}
-        />
+            <Image
+              image={floor}
+              width={width}
+              height={150}
+              y={height - 80}
+              x={0}
+              fit={'cover'}
+            />
 
-        <Image 
-          image={penguin}
-          width={95}
-          height={95}
-          y={penguinYpos}
-          x={width / 4}
-          fit={'contain'}
-        />
-
-      </Canvas>
-      <StatusBar style="auto" hidden={true}/>
+            <Group transform={penguinTransform}
+            origin={penguinOrigin}>
+              <Image 
+                image={penguin}
+                width={95}
+                height={95}
+                y={penguinYpos}
+                x={width / 6}
+                fit={'contain'}
+              />
+            </Group>
+          </Canvas>
+        </GestureDetector>
+        <StatusBar style="auto" hidden={true}/>
+      </GestureHandlerRootView>
     </View>
   );
 }
