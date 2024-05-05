@@ -22,7 +22,7 @@ const gravity = 1000;
 const jump = -450
 const jumpSound = new Audio.Sound();
 const collisionSound = new Audio.Sound();
-const pipeWidth = 75;
+const pipeWidth = 78;
 const pipeHeight = 640;
 
 export default function App() {
@@ -42,8 +42,28 @@ export default function App() {
   const penguinVelocity = useSharedValue(100);
   const penguinCenterX = useDerivedValue (()=> penguinXpos + 47.5);
   const penguinCenterY = useDerivedValue (()=> penguinYpos.value + 47.5);
-  const pipeOffset = 0;
+  const pipeOffset = useSharedValue(0);
+  const topPipeY = useDerivedValue(()=>pipeOffset.value - 255);
+  const bottomPipeY = useDerivedValue(()=>height - 330 + pipeOffset.value);
+  const obstacles = useDerivedValue(()=> {
+    const listOfObstacles = [];
+    //pipeTop
+    listOfObstacles.push({
+      x: x.value,
+      y: pipeOffset.value - 270,
+      h: pipeHeight,
+      w: pipeWidth,
+    });
+    //pipeBottom
+    listOfObstacles.push({
+      x: x.value,
+      y: height - 310 + pipeOffset.value,
+      h: pipeHeight,
+      w: pipeWidth,
+    })
 
+    return listOfObstacles;
+  })
   useEffect(() => {
     // Load both sound files when mounts
     async function loadSounds() {
@@ -98,6 +118,11 @@ export default function App() {
     () => x.value, //x value of pipes
     (currentValue, previousValue) => {
       const penguinPassed = penguinXpos
+      //Randomized pipe height after every score
+      if (currentValue < -100 && previousValue > -100){
+        pipeOffset.value = Math.random() * 400 - 200;
+      }
+
       if (currentValue !== previousValue &&  //current pipe not equal to previous
          previousValue &&                    //previous value should exist
          currentValue <= penguinPassed &&    //if current pipe = penguin pos or left side
@@ -108,6 +133,17 @@ export default function App() {
     }
   );
 
+  const collisionDetection = (point, rect) => {
+    'worklet';
+    return (
+      //bottom pipe - check react native collision detection for rectangle/square
+      point.x >= rect.x &&   //right left-edge
+      point.x <= rect.x + rect.w && //left right-edge
+      point.y >= rect.y  && //below the top
+      point.y <= rect.y + rect.h //above bottom
+    );
+  };
+
   //Collision
   useAnimatedReaction(
     () => penguinYpos.value,
@@ -115,19 +151,17 @@ export default function App() {
       //floor and top screen
       if (currentValue > height - 140 || currentValue < -50)
       {
-        //runOnJS(playCollisionSound)();
-        gameOver.value = true;
-      }
-
-      //bottom pipe
-      if(penguinCenterX.value >= x.value &&   //right left-edge
-        penguinCenterX.value <= x.value + pipeWidth && //left right-edge
-        penguinCenterY.value >= height - 290 + pipeOffset && //below and top
-        penguinCenterY.value <= height - 290 + pipeOffset + pipeHeight //bottom
-      ){
+        runOnJS(playCollisionSound)();
         gameOver.value = true;
       }
       
+      const isColliding = obstacles.value.some((rect)=>
+      collisionDetection({x:penguinCenterX.value, y: penguinCenterY.value}, rect));
+      if(isColliding)
+        {
+          runOnJS(playCollisionSound)();
+          gameOver.value = true;
+        }
     }
     );
   
@@ -175,7 +209,7 @@ export default function App() {
     return [
       { rotate: interpolate(penguinVelocity.value,  //map value in range
        [jump, -jump], //when bird: jump -> fall
-       [-4, 0.5])   //will rotate: -5 -> 0.5
+       [-0.5, 0.5])   //will rotate: -5 -> 0.5
       }
     ];
   })
@@ -199,7 +233,7 @@ export default function App() {
 
             <Image
               image={pipeBottom}
-              y={height - 370 + pipeOffset}
+              y={bottomPipeY}
               x={x}
               width={pipeWidth}
               height={pipeHeight}
@@ -207,7 +241,7 @@ export default function App() {
 
             <Image
               image={pipeTop}
-              y={pipeOffset - 200}
+              y={topPipeY}
               x={x}
               width={pipeWidth}
               height={pipeHeight}
@@ -234,12 +268,12 @@ export default function App() {
               />
             </Group>
 
-            <Circle
+            {/* <Circle
               cx={penguinCenterX}
               cy={penguinCenterY}
               r={15}
               color={'white'}
-            />
+            /> */}
 
             <Text 
             x={width/2} 
