@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
-import { Group, Canvas, useImage, Image, Text, useFont } from "@shopify/react-native-skia";
+import { Group, Canvas, useImage, Image, Text, useFont, Circle, Rect } from "@shopify/react-native-skia";
 import { useWindowDimensions } from 'react-native';
 import { 
   useSharedValue, 
@@ -22,22 +22,27 @@ const gravity = 1000;
 const jump = -450
 const jumpSound = new Audio.Sound();
 const collisionSound = new Audio.Sound();
+const pipeWidth = 75;
+const pipeHeight = 640;
 
 export default function App() {
   const [score, setScore] = useState(0);
   const {width, height} = useWindowDimensions();
   const bg = useImage(require('./assets/sprites/bg.png'));
   const penguin = useImage(require('./assets/sprites/penguin-mid.png'));
-  const pipe = useImage(require('./assets/sprites/pipe-bottom.png'));
+  const pipeBottom = useImage(require('./assets/sprites/pipe-bottom.png'));
   const pipeTop = useImage(require('./assets/sprites/pipe-top.png'));
   const floor = useImage(require('./assets/sprites/floor.png'));
   const font = useFont(require("./assets/fonts/Game-Regular.ttf"), 40);
   const gameOver = useSharedValue(false);
-
+  
   const x = useSharedValue(width - 10); //Shared value for animation
   const penguinYpos = useSharedValue(height/3);
   const penguinXpos = width / 4;
   const penguinVelocity = useSharedValue(100);
+  const penguinCenterX = useDerivedValue (()=> penguinXpos + 47.5);
+  const penguinCenterY = useDerivedValue (()=> penguinYpos.value + 47.5);
+  const pipeOffset = 0;
 
   useEffect(() => {
     // Load both sound files when mounts
@@ -107,14 +112,22 @@ export default function App() {
   useAnimatedReaction(
     () => penguinYpos.value,
     (currentValue, previousValue) => {
+      //floor and top screen
       if (currentValue > height - 140 || currentValue < -50)
       {
         //runOnJS(playCollisionSound)();
         gameOver.value = true;
       }
-      // if(penguinXpos >= x.value){
-      //   gameOver.value = true;
-      // }
+
+      //bottom pipe
+      if(penguinCenterX.value >= x.value &&   //right left-edge
+        penguinCenterX.value <= x.value + pipeWidth && //left right-edge
+        penguinCenterY.value >= height - 290 + pipeOffset && //below and top
+        penguinCenterY.value <= height - 290 + pipeOffset + pipeHeight //bottom
+      ){
+        gameOver.value = true;
+      }
+      
     }
     );
   
@@ -154,7 +167,7 @@ export default function App() {
       restartGame();
     } else {
     penguinVelocity.value = jump      //Add velocity (opposite sign to gravity - to go up)
-    //runOnJS(playJumpSound)();
+    runOnJS(playJumpSound)();
   }
   })
 
@@ -162,7 +175,7 @@ export default function App() {
     return [
       { rotate: interpolate(penguinVelocity.value,  //map value in range
        [jump, -jump], //when bird: jump -> fall
-       [-6, 0.5])   //will rotate: -5 -> 0.5
+       [-4, 0.5])   //will rotate: -5 -> 0.5
       }
     ];
   })
@@ -170,8 +183,6 @@ export default function App() {
   const penguinOrigin = useDerivedValue(() => {
     return {x:penguinXpos + 47.5, y: penguinYpos.value + 47.5}
   })
-
-  const pipeOffset = 0;
 
   return (
     <View style={styles.container}>
@@ -187,21 +198,21 @@ export default function App() {
             />
 
             <Image
-              image={pipe}
+              image={pipeBottom}
               y={height - 370 + pipeOffset}
               x={x}
-              width={75}
-              height={640}
+              width={pipeWidth}
+              height={pipeHeight}
             />
 
             <Image
               image={pipeTop}
               y={pipeOffset - 200}
               x={x}
-              width={75}
-              height={640}
+              width={pipeWidth}
+              height={pipeHeight}
             />
-
+          
             <Image
               image={floor}
               width={width}
@@ -222,6 +233,13 @@ export default function App() {
                 fit={'contain'}
               />
             </Group>
+
+            <Circle
+              cx={penguinCenterX}
+              cy={penguinCenterY}
+              r={15}
+              color={'white'}
+            />
 
             <Text 
             x={width/2} 
