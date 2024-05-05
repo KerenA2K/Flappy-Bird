@@ -36,11 +36,11 @@ export default function App() {
   const font = useFont(require("./assets/fonts/Game-Regular.ttf"), 40);
   const gameOver = useSharedValue(false);
   
-  const x = useSharedValue(width - 10); //Shared value for animation
+  const x = useSharedValue(width - 10); //Shared value is for animation
   const penguinYpos = useSharedValue(height/3);
   const penguinXpos = width / 4;
   const penguinVelocity = useSharedValue(100);
-  const penguinCenterX = useDerivedValue (()=> penguinXpos + 47.5);
+  const penguinCenterX = useDerivedValue (()=> penguinXpos + 47.5); //using calculated value
   const penguinCenterY = useDerivedValue (()=> penguinYpos.value + 47.5);
   const pipeOffset = useSharedValue(0);
   const topPipeY = useDerivedValue(()=>pipeOffset.value - 255);
@@ -61,11 +61,10 @@ export default function App() {
       h: pipeHeight,
       w: pipeWidth,
     })
-
     return listOfObstacles;
   })
+//-------------------------------LOAD SOUNDS-------------------------------
   useEffect(() => {
-    // Load both sound files when mounts
     async function loadSounds() {
       try {
         await jumpSound.loadAsync(require('./assets/jump.wav'));
@@ -80,16 +79,14 @@ export default function App() {
       collisionSound.unloadAsync();
     };
   }, []); 
-
+  //-------------------------------PLAY SOUNDS-------------------------------
   const playJumpSound = () => {
     try {
-      // Play the sound
       jumpSound.replayAsync();
     } catch (error) {
       console.error('Error playing sound', error);
     }
   };
-
   const playCollisionSound = () => {
     try {
       collisionSound.replayAsync();
@@ -98,7 +95,7 @@ export default function App() {
     }
   };
 
-  //Loop pipes
+  //-------------------------------LOOP PIPES-------------------------------
   useEffect (() => {
     pipeMovement();
    }, []);
@@ -113,7 +110,7 @@ export default function App() {
     )
   }
      
-   //Scoring
+  //-------------------------------SCORING-------------------------------
   useAnimatedReaction(
     () => x.value, //x value of pipes
     (currentValue, previousValue) => {
@@ -132,7 +129,8 @@ export default function App() {
       }
     }
   );
-
+  
+  //-------------------------------COLLISION-------------------------------
   const collisionDetection = (point, rect) => {
     'worklet';
     return (
@@ -144,7 +142,7 @@ export default function App() {
     );
   };
 
-  //Collision
+
   useAnimatedReaction(
     () => penguinYpos.value,
     (currentValue, previousValue) => {
@@ -155,6 +153,7 @@ export default function App() {
         gameOver.value = true;
       }
       
+      //pipes
       const isColliding = obstacles.value.some((rect)=>
       collisionDetection({x:penguinCenterX.value, y: penguinCenterY.value}, rect));
       if(isColliding)
@@ -165,7 +164,7 @@ export default function App() {
     }
     );
   
-  //GameOver
+  //-------------------------------GAME OVER-------------------------------
   useAnimatedReaction(
     () => gameOver.value,
     (currentValue, previousValue) => {
@@ -176,7 +175,7 @@ export default function App() {
     }
   );
 
-  //Penguin falling physics
+  //-------------------------------PENGUIN FALLING PHYSICS-------------------------------
   useFrameCallback(({timeSincePreviousFrame: dt})=>{ //called on every frame
     if (!dt || gameOver.value){
       return;
@@ -185,6 +184,7 @@ export default function App() {
     penguinVelocity.value = penguinVelocity.value + (gravity * dt)/1000;       //Minus Velocity to fall
   });
 
+  //-------------------------------RESTART GAME-------------------------------
    const restartGame = () => {  //reset all values
     'worklet';
     penguinYpos.value = height/3;
@@ -195,7 +195,7 @@ export default function App() {
     runOnJS(setScore)(0);  //runOnJS to update state on animation or within gesture
   }
 
-  //Penguin jump physics
+  //-------------------------------PENGUIN JUMP-------------------------------
   const gesture = Gesture.Tap().onStart(() => { //onTap
     if (gameOver.value) {   //if gameover - restart
       restartGame();
@@ -205,7 +205,7 @@ export default function App() {
   }
   })
 
-  const penguinTransform = useDerivedValue(() => { //Using calculated value
+  const penguinTransform = useDerivedValue(() => {
     return [
       { rotate: interpolate(penguinVelocity.value,  //map value in range
        [jump, -jump], //when bird: jump -> fall
@@ -267,13 +267,6 @@ export default function App() {
                 fit={'contain'}
               />
             </Group>
-
-            {/* <Circle
-              cx={penguinCenterX}
-              cy={penguinCenterY}
-              r={15}
-              color={'white'}
-            /> */}
 
             <Text 
             x={width/2} 
