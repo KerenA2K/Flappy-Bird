@@ -68,7 +68,7 @@ export default function App() {
     async function loadSounds() {
       try {
         await jumpSound.loadAsync(require('./assets/jump.wav'));
-        await collisionSound.loadAsync(require('./assets/collision.wav'));
+        await collisionSound.loadAsync(require('./assets/collision1.wav'));
       } catch (error) {
         console.error('Error loading sounds', error);
       }
